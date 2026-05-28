@@ -5,5 +5,40 @@
     "jobTitle": "Test Email from Internship Bot",
     "company": "Automation System",
     "messageId": "<7b0c4d0b-5f72-86e9-cc6a-c2d637e38346@gmail.com>"
+  },
+  {
+    "timestamp": "2026-05-28T18:53:41.117Z",
+    "to": "gaurav775.official@gmail.com",
+    "jobTitle": "Test Email from Internship Bot",
+    "company": "Automation System",
+    "messageId": "<52ae9d3f-97d4-0cfb-704c-cae9cf64006a@gmail.com>"
+  },
+  {
+    "timestamp": "2026-05-28T19:19:20.704Z",
+    "to": "hr@techcorp.com",
+    "jobTitle": "Software Engineering Intern",
+    "company": "TechCorp",
+    "messageId": "<3aff817a-a8dd-fb03-4629-0ada32bd0348@gmail.com>"
+  },
+  {
+    "timestamp": "2026-05-28T19:20:26.907Z",
+    "to": "gaurav775.official@gmail.com",
+    "jobTitle": "Software Engineering Intern",
+    "company": "TechCorp",
+    "messageId": "<82a077de-69ba-1db2-1a0b-7c199a2c1fd3@gmail.com>"
+  },
+  {
+    "timestamp": "2026-05-28T19:24:49.582Z",
+    "to": "gaurav775.official@gmail.com",
+    "jobTitle": "Software Engineering Intern",
+    "company": "TechCorp",
+    "messageId": "<0533ae91-d67b-ec53-84c5-c137005a8715@gmail.com>"
+  },
+  {
+    "timestamp": "2026-05-28T19:25:20.701Z",
+    "to": "gaurav775.official@gmail.com",
+    "jobTitle": "Software Engineering Intern",
+    "company": "TechCorp",
+    "messageId": "<fc7b8261-1929-7e88-e874-cf5e28127193@gmail.com>"
   }
 ]

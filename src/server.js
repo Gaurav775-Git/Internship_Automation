@@ -217,9 +217,9 @@ async function sendApplication(args) {
         <p>My resume is attached for your review. I would welcome the opportunity to discuss how I can add value to your organization.</p>
         <p>Best regards,<br>
         <strong>[Your Name]</strong><br>
-        <a href="https://linkedin.com/in/yourprofile">LinkedIn</a> | 
-        <a href="https://github.com/yourusername">GitHub</a> | 
-        <a href="https://yourportfolio.com">Portfolio</a></p>
+        <a href="https://www.linkedin.com/in/gaurav775/">LinkedIn</a> | 
+        <a href="https://github.com/gaurav775-git">GitHub</a> | 
+        <a href="https://gaurav-rpm.vercel.app/">Portfolio</a></p>
       </div>
     `;
     
