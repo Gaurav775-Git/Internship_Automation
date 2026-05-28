@@ -33,16 +33,14 @@ async function main() {
     const userInput = await rl.question("You: ");
     const prompt = userInput.trim();
 
-    if (!prompt) {
-      continue;
-    }
+    if (!prompt) continue;
 
     if (["exit", "quit", "bye"].includes(prompt.toLowerCase())) {
       console.log("Goodbye!");
       break;
     }
 
-    console.log("AI is thinking...\n");
+    console.log("🤔 AI is thinking...\n");
 
     try {
       const toolResponse = await client.callTool({
@@ -50,19 +48,31 @@ async function main() {
         arguments: { message: prompt }
       });
 
-      const text = toolResponse.content?.[0]?.text;
-      if (!text) {
-        throw new Error("No response from server");
+      // Parse response properly
+      let resultText = "";
+      if (toolResponse.content && Array.isArray(toolResponse.content)) {
+        resultText = toolResponse.content[0]?.text || "";
+      } else if (toolResponse.content?.text) {
+        resultText = toolResponse.content.text;
+      } else {
+        resultText = JSON.stringify(toolResponse);
       }
 
-      const result = JSON.parse(text);
+      let result;
+      try {
+        result = JSON.parse(resultText);
+      } catch {
+        result = { success: true, response: resultText };
+      }
+
       if (result.success) {
-        console.log(`AI: ${result.response}\n`);
+        const responseText = result.response || resultText;
+        console.log(`🤖 AI: ${responseText}\n`);
       } else {
-        console.error(`Error: ${result.error}\n`);
+        console.error(`❌ Error: ${result.error || resultText}\n`);
       }
     } catch (error) {
-      console.error(`Error: ${error.message}\n`);
+      console.error(`❌ Error: ${error.message}\n`);
     }
   }
 

@@ -65,6 +65,19 @@ const server = new Server(
 // TOOL HANDLERS
 // ============================================
 
+// Helper: Extract skills from resume text
+function extractSkills(text) {
+  const commonSkills = [
+    "python", "javascript", "react", "node.js", "java", "sql",
+    "aws", "docker", "git", "typescript", "html", "css",
+    "mongodb", "express", "django", "flask", "postgresql"
+  ];
+  
+  return commonSkills.filter(skill => 
+    text.toLowerCase().includes(skill.toLowerCase())
+  );
+}
+
 // Tool 1: Search LinkedIn Jobs (from CSV)
 async function searchLinkedInJobs(args) {
   const { keyword, location, limit = 20 } = args;
@@ -123,19 +136,16 @@ async function filterJobs(args) {
   try {
     const jobList = typeof jobs === "string" ? JSON.parse(jobs) : jobs;
     
-    // Extract skills from resume (simple keyword extraction)
     const skills = extractSkills(resumeText);
     
     const scoredJobs = jobList.map(job => {
       let score = 0;
       const jobText = `${job.title || ""} ${job.description || ""}`.toLowerCase();
       
-      // Score based on skills match
       skills.forEach(skill => {
         if (jobText.includes(skill.toLowerCase())) score += 2;
       });
       
-      // Bonus for internship/junior keywords
       if (job.title?.toLowerCase().includes("intern")) score += 3;
       if (job.title?.toLowerCase().includes("junior")) score += 2;
       if (job.title?.toLowerCase().includes("entry")) score += 2;
@@ -165,7 +175,7 @@ async function filterJobs(args) {
   }
 }
 
-// Tool 3: Send email with resume
+// Tool 3: Send email with resume (FIXED - removed malformed object)
 async function sendApplication(args) {
   const {
     to,
@@ -189,18 +199,15 @@ async function sendApplication(args) {
       throw new Error("Resume path is required. Set RESUME_PATH in .env or pass resumePath as an argument.");
     }
 
-    // Setup Gmail transporter
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: { user: gmailUser, pass: gmailPassword }
     });
     
-    // Check if resume exists
     if (!existsSync(resumePath)) {
       throw new Error(`Resume not found at ${resumePath}`);
     }
     
-    // Email template
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px;">
         <h2>Application for ${jobTitle}</h2>
@@ -224,8 +231,7 @@ async function sendApplication(args) {
       attachments: [{ filename: "resume.pdf", path: resumePath }]
     });
     
-    // Log sent email
-    const logDir = path.join(process.cwd(), "logs");
+    const logDir = path.join(ROOT_DIR, "logs");
     if (!existsSync(logDir)) await mkdir(logDir, { recursive: true });
     
     const logEntry = {
@@ -264,12 +270,12 @@ async function sendApplication(args) {
   }
 }
 
-// Tool 4: Save to Google Sheets (simplified - saves to CSV for now)
+// Tool 4: Save to CSV
 async function logApplication(args) {
   const { jobTitle, company, matchScore, status = "Applied" } = args;
   
   try {
-    const logDir = path.join(process.cwd(), "logs");
+    const logDir = path.join(ROOT_DIR, "logs");
     if (!existsSync(logDir)) await mkdir(logDir, { recursive: true });
     
     const csvPath = path.join(logDir, "applications.csv");
@@ -297,20 +303,7 @@ async function logApplication(args) {
   }
 }
 
-// Helper: Extract skills from resume text
-function extractSkills(text) {
-  const commonSkills = [
-    "python", "javascript", "react", "node.js", "java", "sql",
-    "aws", "docker", "git", "typescript", "html", "css",
-    "mongodb", "express", "django", "flask", "postgresql"
-  ];
-  
-  return commonSkills.filter(skill => 
-    text.toLowerCase().includes(skill.toLowerCase())
-  );
-}
-
-// Tool 5: Analyze job fit using OpenRouter's free Mistral API
+// Tool 5: Analyze job fit using OpenRouter
 async function mistralAnalyzeJob(args) {
   const { jobTitle, company, jobDescription, requirements, yourResume } = args;
   
@@ -344,12 +337,7 @@ Be realistic and specific to this job. Consider actual skill matches, experience
       },
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
+        messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
         max_tokens: 1000
       })
@@ -367,8 +355,6 @@ Be realistic and specific to this job. Consider actual skill matches, experience
     }
 
     const responseText = data.choices[0].message.content;
-    
-    // Extract JSON from response (in case there's extra text)
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("Could not extract JSON from API response");
@@ -376,7 +362,6 @@ Be realistic and specific to this job. Consider actual skill matches, experience
 
     const analysisResult = JSON.parse(jsonMatch[0]);
 
-    // Validate response structure
     if (
       typeof analysisResult.match_score !== "number" ||
       !Array.isArray(analysisResult.reasons_to_apply) ||
@@ -387,37 +372,30 @@ Be realistic and specific to this job. Consider actual skill matches, experience
     }
 
     return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            success: true,
-            analysis: analysisResult,
-            job: { jobTitle, company }
-          })
-        }
-      ]
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          success: true,
+          analysis: analysisResult,
+          job: { jobTitle, company }
+        })
+      }]
     };
   } catch (error) {
     return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            success: false,
-            error: error.message,
-            fallback: {
-              match_score: 50,
-              reasons_to_apply: [
-                "Could not reach analysis service",
-                "Please retry with proper internet connection"
-              ],
-              should_apply: false,
-              email_body: "Error: Could not generate email body"
-            }
-          })
-        }
-      ]
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          success: false,
+          error: error.message,
+          fallback: {
+            match_score: 50,
+            reasons_to_apply: ["Could not reach analysis service", "Please retry with proper internet connection"],
+            should_apply: false,
+            email_body: "Error: Could not generate email body"
+          }
+        })
+      }]
     };
   }
 }
@@ -444,12 +422,7 @@ async function llmChat(args) {
       },
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
-        messages: [
-          {
-            role: "user",
-            content: message
-          }
-        ],
+        messages: [{ role: "user", content: message }],
         temperature: 0.7,
         max_tokens: 1000
       })
@@ -528,7 +501,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             gmailUser: { type: "string" },
             gmailPassword: { type: "string" }
           },
-          required: ["to", "jobTitle", "company", "resumePath", "gmailUser", "gmailPassword"]
+          required: ["to", "jobTitle", "company"]
         }
       },
       {
@@ -551,16 +524,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            jobTitle: { type: "string", description: "Job title (e.g., 'Software Engineer Intern')" },
-            company: { type: "string", description: "Company name" },
-            jobDescription: { type: "string", description: "Full job description from posting" },
-            requirements: { type: "string", description: "Required skills and qualifications" },
-            yourResume: { type: "string", description: "Your resume content/text" }
+            jobTitle: { type: "string" },
+            company: { type: "string" },
+            jobDescription: { type: "string" },
+            requirements: { type: "string" },
+            yourResume: { type: "string" }
           },
-          required: ["jobTitle", "company", "jobDescription", "requirements", "yourResume"]
+          required: ["jobTitle", "company", "jobDescription", "yourResume"]
         }
-      }
-      ,
+      },
       {
         name: "llm_chat",
         description: "Chat with the OpenRouter LLM through the server",
