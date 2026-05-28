@@ -1,0 +1,4 @@
+Skills: Python, JavaScript, React, Node.js, SQL, Git, AWS
+Experience: Built 3 web apps, 2 internships
+Education: Computer Science, 3rd year
+Projects: E-commerce site, Weather dashboard, Chat app

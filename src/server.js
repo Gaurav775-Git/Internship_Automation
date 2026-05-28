@@ -4,10 +4,49 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { createTransport } from "nodemailer";
+import nodemailer from "nodemailer";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ROOT_DIR = path.join(__dirname, "..");
+
+async function loadEnvFile() {
+  const envPath = path.join(ROOT_DIR, ".env");
+  if (!existsSync(envPath)) return;
+
+  const contents = await readFile(envPath, "utf-8");
+  contents.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+    const [key, ...rest] = trimmed.split("=");
+    if (!key) return;
+    const value = rest.join("=").trim();
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  });
+}
+
+await loadEnvFile();
+
+const OPENROUTER_API_URL = process.env.OPENROUTER_API_URL || "https://openrouter.ai/api/v1";
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
+const DEFAULT_GMAIL_USER = process.env.GMAIL_USER || "";
+const DEFAULT_GMAIL_PASSWORD = process.env.GMAIL_PASSWORD || "";
+const DEFAULT_RESUME_PATH = process.env.RESUME_PATH
+  ? path.isAbsolute(process.env.RESUME_PATH)
+    ? process.env.RESUME_PATH
+    : path.join(ROOT_DIR, process.env.RESUME_PATH)
+  : path.join(ROOT_DIR, "data", "resume.txt");
+const DEFAULT_OPENROUTER_HEADERS = {
+  "Content-Type": "application/json",
+  ...(OPENROUTER_API_KEY ? { Authorization: `Bearer ${OPENROUTER_API_KEY}` } : {})
+};
 
 // Create MCP server instance
 const server = new Server(
@@ -31,7 +70,7 @@ async function searchLinkedInJobs(args) {
   const { keyword, location, limit = 20 } = args;
   
   try {
-    const csvPath = path.join(process.cwd(), "data", "linkedin_jobs.csv");
+    const csvPath = path.join(ROOT_DIR, "data", "linkedin_jobs.csv");
     
     if (!existsSync(csvPath)) {
       return {
@@ -128,11 +167,30 @@ async function filterJobs(args) {
 
 // Tool 3: Send email with resume
 async function sendApplication(args) {
-  const { to, jobTitle, company, resumePath, gmailUser, gmailPassword } = args;
-  
+  const {
+    to,
+    jobTitle,
+    company,
+    resumePath: resumePathArg,
+    gmailUser: gmailUserArg,
+    gmailPassword: gmailPasswordArg,
+  } = args;
+
+  const gmailUser = gmailUserArg || DEFAULT_GMAIL_USER;
+  const gmailPassword = gmailPasswordArg || DEFAULT_GMAIL_PASSWORD;
+  const resumePath = resumePathArg || DEFAULT_RESUME_PATH;
+
   try {
+    if (!gmailUser || !gmailPassword) {
+      throw new Error("Gmail credentials are required. Set GMAIL_USER and GMAIL_PASSWORD in .env or pass them as arguments.");
+    }
+
+    if (!resumePath) {
+      throw new Error("Resume path is required. Set RESUME_PATH in .env or pass resumePath as an argument.");
+    }
+
     // Setup Gmail transporter
-    const transporter = createTransport({
+    const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: { user: gmailUser, pass: gmailPassword }
     });
@@ -252,6 +310,178 @@ function extractSkills(text) {
   );
 }
 
+// Tool 5: Analyze job fit using OpenRouter's free Mistral API
+async function mistralAnalyzeJob(args) {
+  const { jobTitle, company, jobDescription, requirements, yourResume } = args;
+  
+  try {
+    const prompt = `Analyze the fit between a job opportunity and a candidate's resume.
+
+Job Title: ${jobTitle}
+Company: ${company}
+Job Description: ${jobDescription}
+Required Skills/Qualifications: ${requirements}
+
+Candidate's Resume:
+${yourResume}
+
+Provide a JSON response with these exact fields:
+{
+  "match_score": <number 0-100>,
+  "reasons_to_apply": [<array of 3-5 specific reasons>],
+  "should_apply": <boolean>,
+  "email_body": "<draft email body for this specific opportunity>"
+}
+
+Be realistic and specific to this job. Consider actual skill matches, experience level, and company fit.`;
+
+    const response = await fetch(`${OPENROUTER_API_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        ...DEFAULT_OPENROUTER_HEADERS,
+        "HTTP-Referer": "http://localhost",
+        "X-Title": "internship-automation"
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`OpenRouter API error (${response.status}): ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error("Invalid response structure from OpenRouter API");
+    }
+
+    const responseText = data.choices[0].message.content;
+    
+    // Extract JSON from response (in case there's extra text)
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("Could not extract JSON from API response");
+    }
+
+    const analysisResult = JSON.parse(jsonMatch[0]);
+
+    // Validate response structure
+    if (
+      typeof analysisResult.match_score !== "number" ||
+      !Array.isArray(analysisResult.reasons_to_apply) ||
+      typeof analysisResult.should_apply !== "boolean" ||
+      typeof analysisResult.email_body !== "string"
+    ) {
+      throw new Error("API response missing required fields");
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: true,
+            analysis: analysisResult,
+            job: { jobTitle, company }
+          })
+        }
+      ]
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: false,
+            error: error.message,
+            fallback: {
+              match_score: 50,
+              reasons_to_apply: [
+                "Could not reach analysis service",
+                "Please retry with proper internet connection"
+              ],
+              should_apply: false,
+              email_body: "Error: Could not generate email body"
+            }
+          })
+        }
+      ]
+    };
+  }
+}
+
+// Tool 6: Generic LLM chat using OpenRouter
+async function llmChat(args) {
+  const { message } = args;
+  if (!message) {
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ success: false, error: "Missing message parameter" })
+      }]
+    };
+  }
+
+  try {
+    const response = await fetch(`${OPENROUTER_API_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        ...DEFAULT_OPENROUTER_HEADERS,
+        "HTTP-Referer": "http://localhost",
+        "X-Title": "internship-automation"
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: message
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`OpenRouter API error (${response.status}): ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("Invalid response structure from OpenRouter API");
+    }
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ success: true, response: content.trim() })
+      }]
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ success: false, error: error.message })
+      }]
+    };
+  }
+}
+
 // ============================================
 // MCP HANDLERS
 // ============================================
@@ -314,6 +544,33 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["jobTitle", "company", "matchScore"]
         }
+      },
+      {
+        name: "mistral_analyze_job",
+        description: "Analyze job fit using OpenRouter's free Mistral API - provides match score and email draft",
+        inputSchema: {
+          type: "object",
+          properties: {
+            jobTitle: { type: "string", description: "Job title (e.g., 'Software Engineer Intern')" },
+            company: { type: "string", description: "Company name" },
+            jobDescription: { type: "string", description: "Full job description from posting" },
+            requirements: { type: "string", description: "Required skills and qualifications" },
+            yourResume: { type: "string", description: "Your resume content/text" }
+          },
+          required: ["jobTitle", "company", "jobDescription", "requirements", "yourResume"]
+        }
+      }
+      ,
+      {
+        name: "llm_chat",
+        description: "Chat with the OpenRouter LLM through the server",
+        inputSchema: {
+          type: "object",
+          properties: {
+            message: { type: "string", description: "Prompt text for the LLM" }
+          },
+          required: ["message"]
+        }
       }
     ]
   };
@@ -331,6 +588,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return await sendApplication(args);
     case "log_application":
       return await logApplication(args);
+    case "mistral_analyze_job":
+      return await mistralAnalyzeJob(args);
+    case "llm_chat":
+      return await llmChat(args);
     default:
       throw new Error(`Tool not found: ${name}`);
   }
@@ -341,7 +602,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("✅ Internship Automation MCP Server running");
-  console.error("📧 Tools: search_linkedin, filter_jobs, send_application, log_application");
+  console.error("📧 Tools: search_linkedin, filter_jobs, send_application, log_application, mistral_analyze_job, llm_chat");
 }
 
 main().catch(console.error);
