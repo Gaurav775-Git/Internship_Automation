@@ -4,7 +4,7 @@ import boxen from 'boxen';
 
 export async function showBanner() {
   return new Promise((resolve) => {
-    figlet.text('AutoIntern', { font: 'ANSI Shadow' }, (err, data) => {
+    figlet.text('AutoIntern', { font: 'Standard' }, (err, data) => {
       if (err) {
         console.log('AutoIntern - Internship Automation');
         return resolve();
