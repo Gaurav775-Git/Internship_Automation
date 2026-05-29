@@ -47,6 +47,7 @@ const DEFAULT_OPENROUTER_HEADERS = {
   "Content-Type": "application/json",
   ...(OPENROUTER_API_KEY ? { Authorization: `Bearer ${OPENROUTER_API_KEY}` } : {})
 };
+const CSV_HEADERS = ["Title", "Company", "Description", "Requirements", "Email"];
 
 // Create MCP server instance
 const server = new Server(
@@ -76,6 +77,161 @@ function extractSkills(text) {
   return commonSkills.filter(skill => 
     text.toLowerCase().includes(skill.toLowerCase())
   );
+}
+
+function normalizeCsvCell(value) {
+  return String(value ?? "").replace(/\r/g, "").replace(/^"|"$/g, "").trim();
+}
+
+function escapeCsvCell(value) {
+  const text = String(value ?? "");
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
+function splitCsvRows(csvText) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  const text = csvText.replace(/^\uFEFF/, "");
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") i++;
+      row.push(cell);
+      if (row.some((entry) => String(entry).trim() !== "")) {
+        rows.push(row);
+      }
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+  }
+
+  if (cell.length > 0 || row.length > 0) {
+    row.push(cell);
+    if (row.some((entry) => String(entry).trim() !== "")) {
+      rows.push(row);
+    }
+  }
+
+  return rows;
+}
+
+function isHeaderRow(row) {
+  const normalized = row.map((cell) => normalizeCsvCell(cell).toLowerCase());
+  return CSV_HEADERS.some((header) => normalized.includes(header.toLowerCase()));
+}
+
+function parseJsonFromText(text) {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) {
+    throw new Error("Could not extract JSON from AI response");
+  }
+  return JSON.parse(match[0]);
+}
+
+async function callOpenRouter(prompt, { temperature = 0.2, max_tokens = 900 } = {}) {
+  const response = await fetch(`${OPENROUTER_API_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      ...DEFAULT_OPENROUTER_HEADERS,
+      "HTTP-Referer": "http://localhost",
+      "X-Title": "internship-automation"
+    },
+    body: JSON.stringify({
+      model: OPENROUTER_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature,
+      max_tokens
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(`OpenRouter API error (${response.status}): ${errorData.error?.message || "Unknown error"}`);
+  }
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("Invalid response structure from OpenRouter API");
+  }
+
+  return content.trim();
+}
+
+async function cleanCsvRowWithAi({ headers, row, rowNumber }) {
+  const prompt = `You are cleaning an internship CSV row.
+
+Source headers:
+${JSON.stringify(headers)}
+
+Row number:
+${rowNumber}
+
+Parsed cells from the source row:
+${JSON.stringify(row)}
+
+Normalize this row into EXACTLY these fields:
+${JSON.stringify(CSV_HEADERS)}
+
+Rules:
+- Keep only information that is supported by the source row.
+- Fix obvious formatting issues, broken quotes, and extra whitespace.
+- If a field is missing or unclear, use "Unknown" for Title, Company, Description, Requirements and use an empty string for Email unless an email is clearly present.
+- Do not invent emails or companies.
+- If the row is unusable, still return a best-effort record and mark it with "row_status": "needs_review".
+- Return valid JSON only. No markdown, no code fences.
+
+Output schema:
+{
+  "Title": "",
+  "Company": "",
+  "Description": "",
+  "Requirements": "",
+  "Email": "",
+  "row_status": "cleaned",
+  "notes": ["optional note"]
+}`;
+
+  const responseText = await callOpenRouter(prompt, { temperature: 0.1, max_tokens: 700 });
+  const cleaned = parseJsonFromText(responseText);
+
+  return {
+    Title: normalizeCsvCell(cleaned.Title || cleaned.title || "Unknown") || "Unknown",
+    Company: normalizeCsvCell(cleaned.Company || cleaned.company || "Unknown") || "Unknown",
+    Description: normalizeCsvCell(cleaned.Description || cleaned.description || "Unknown") || "Unknown",
+    Requirements: normalizeCsvCell(cleaned.Requirements || cleaned.requirements || "Unknown") || "Unknown",
+    Email: normalizeCsvCell(cleaned.Email || cleaned.email || ""),
+    row_status: normalizeCsvCell(cleaned.row_status || "cleaned") || "cleaned",
+    notes: Array.isArray(cleaned.notes) ? cleaned.notes.map((note) => normalizeCsvCell(note)).filter(Boolean) : []
+  };
 }
 
 // Tool 1: Search LinkedIn Jobs (from CSV)
@@ -455,6 +611,116 @@ async function llmChat(args) {
   }
 }
 
+// Tool 7: AI clean and normalize CSV data
+async function filterData(args) {
+  const {
+    csvPath: csvPathArg,
+    outputPath: outputPathArg,
+    overwrite = false
+  } = args;
+
+  const csvPath = csvPathArg
+    ? (path.isAbsolute(csvPathArg) ? csvPathArg : path.join(ROOT_DIR, csvPathArg))
+    : path.join(ROOT_DIR, "data", "internships.csv");
+
+  try {
+    if (!existsSync(csvPath)) {
+      throw new Error(`CSV file not found at ${csvPath}`);
+    }
+
+    const csvContent = await readFile(csvPath, "utf-8");
+    const rows = splitCsvRows(csvContent);
+
+    if (rows.length === 0) {
+      throw new Error("CSV file is empty");
+    }
+
+    const hasHeader = isHeaderRow(rows[0]);
+    const sourceHeaders = hasHeader ? rows[0].map((header) => normalizeCsvCell(header)) : [...CSV_HEADERS];
+    const dataRows = hasHeader ? rows.slice(1) : rows;
+
+    if (dataRows.length === 0) {
+      throw new Error("No data rows found in the CSV file");
+    }
+
+    const cleanedRows = [];
+    const warnings = [];
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const rowNumber = hasHeader ? i + 2 : i + 1;
+      const row = dataRows[i].map((cell) => normalizeCsvCell(cell));
+
+      let cleanedRow;
+      try {
+        cleanedRow = await cleanCsvRowWithAi({
+          headers: sourceHeaders,
+          row,
+          rowNumber
+        });
+      } catch (rowError) {
+        const fallback = {
+          Title: row[0] || "Unknown",
+          Company: row[1] || "Unknown",
+          Description: row[2] || "Unknown",
+          Requirements: row[3] || "Unknown",
+          Email: row[4] || "",
+          row_status: "needs_review",
+          notes: [`AI cleanup failed: ${rowError.message}`]
+        };
+        cleanedRow = fallback;
+        warnings.push(`Row ${rowNumber}: ${rowError.message}`);
+      }
+
+      cleanedRows.push(cleanedRow);
+    }
+
+    const finalRows = [CSV_HEADERS.join(",")];
+    for (const row of cleanedRows) {
+      finalRows.push(CSV_HEADERS.map((header) => escapeCsvCell(row[header] ?? "")).join(","));
+    }
+
+    const resolvedOutputPath = overwrite
+      ? csvPath
+      : (outputPathArg
+          ? (path.isAbsolute(outputPathArg) ? outputPathArg : path.join(ROOT_DIR, outputPathArg))
+          : path.join(path.dirname(csvPath), `${path.basename(csvPath, path.extname(csvPath))}.cleaned${path.extname(csvPath) || ".csv"}`));
+
+    const outputDir = path.dirname(resolvedOutputPath);
+    if (!existsSync(outputDir)) {
+      await mkdir(outputDir, { recursive: true });
+    }
+
+    await writeFile(resolvedOutputPath, finalRows.join("\n") + "\n");
+
+    const needsReview = cleanedRows.filter((row) => row.row_status === "needs_review").length;
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          success: true,
+          inputPath: csvPath,
+          outputPath: resolvedOutputPath,
+          rowsRead: dataRows.length,
+          rowsWritten: cleanedRows.length,
+          rowsNeedingReview: needsReview,
+          warnings
+        })
+      }]
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          success: false,
+          error: error.message
+        })
+      }]
+    };
+  }
+}
+
 // ============================================
 // MCP HANDLERS
 // ============================================
@@ -543,6 +809,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["message"]
         }
+      },
+      {
+        name: "filter_data",
+        description: "AI clean and normalize a CSV file with missing or malformed internship data",
+        inputSchema: {
+          type: "object",
+          properties: {
+            csvPath: { type: "string", description: "Path to the source CSV file" },
+            outputPath: { type: "string", description: "Path for the cleaned CSV output" },
+            overwrite: { type: "boolean", description: "Overwrite the source CSV instead of creating a new file", default: false }
+          },
+          required: ["csvPath"]
+        }
       }
     ]
   };
@@ -564,6 +843,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return await mistralAnalyzeJob(args);
     case "llm_chat":
       return await llmChat(args);
+    case "filter_data":
+      return await filterData(args);
     default:
       throw new Error(`Tool not found: ${name}`);
   }
@@ -574,7 +855,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("✅ Internship Automation MCP Server running");
-  console.error("📧 Tools: search_linkedin, filter_jobs, send_application, log_application, mistral_analyze_job, llm_chat");
+  console.error("📧 Tools: search_linkedin, filter_jobs, send_application, log_application, mistral_analyze_job, llm_chat, filter_data");
 }
 
 main().catch(console.error);

@@ -10,6 +10,7 @@ export async function showMainMenu() {
         { name: '🚀 AUTO MODE - Complete automation (CSV → Send)', value: 'auto' },
         { name: '🔧 MANUAL MODE - Step-by-step guided process', value: 'manual' },
         { name: '📦 BATCH MODE - Process specific jobs from CSV', value: 'batch' },
+        { name: '🧹 FILTER DATA - AI clean and fix CSV data', value: 'filterData' },
         { name: '📊 VIEW LOGS - See application history', value: 'logs' },
         { name: '⚙️ CONFIGURATION - Update settings', value: 'config' },
         { name: '🧪 TEST EMAIL - Send test to yourself', value: 'test' },

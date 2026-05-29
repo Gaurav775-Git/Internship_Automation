@@ -34,6 +34,64 @@ async function waitForContinue() {
   ]);
 }
 
+async function runFilterDataTool(client, config) {
+  console.log('\n🧹 FILTER DATA MODE\n');
+
+  const { overwrite } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'overwrite',
+      message: 'How should the cleaned CSV be saved?',
+      choices: [
+        { name: 'Create a cleaned copy (recommended)', value: false },
+        { name: 'Overwrite the current CSV', value: true }
+      ],
+      default: false
+    }
+  ]);
+
+  let outputPath = '';
+  if (!overwrite) {
+    const response = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'outputPath',
+        message: 'Output path for cleaned CSV:',
+        default: 'data/internships.cleaned.csv'
+      }
+    ]);
+    outputPath = response.outputPath;
+  }
+
+  const spinner = await showSpinner('AI is cleaning and normalizing the CSV...');
+  try {
+    const result = await client.callTool({
+      name: 'filter_data',
+      arguments: {
+        csvPath: config.csvPath,
+        outputPath: overwrite ? undefined : outputPath,
+        overwrite
+      }
+    });
+
+    const data = JSON.parse(result.content[0].text);
+    spinner.stop();
+
+    if (data.success) {
+      showSuccess(`CSV cleaned successfully: ${data.outputPath}`);
+      showInfo(`Rows read: ${data.rowsRead}, rows written: ${data.rowsWritten}, rows needing review: ${data.rowsNeedingReview}`);
+      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+        showWarning(`Some rows needed fallback cleanup (${data.warnings.length} warning(s))`);
+      }
+    } else {
+      showError(`Failed to clean CSV: ${data.error}`);
+    }
+  } catch (err) {
+    spinner.stop();
+    showError(err.message);
+  }
+}
+
 async function main() {
   console.clear();
   await showBanner();
@@ -183,6 +241,10 @@ async function main() {
         await runBatchMode(client, config, resumeText, GMAIL_USER, GMAIL_PASSWORD);
         await waitForContinue();
         break;
+      case 'filterData':
+        await runFilterDataTool(client, config);
+        await waitForContinue();
+        break;
       case 'logs':
         await showLogs(ROOT_DIR);
         await waitForContinue();
@@ -227,6 +289,7 @@ async function main() {
         console.log('│                                                │');
         console.log('│  Features:                                     │');
         console.log('│  • Auto-apply from CSV                         │');
+        console.log('│  • AI CSV cleaning and repair                  │');
         console.log('│  • LLM job matching                            │');
         console.log('│  • Personalized emails                         │');
         console.log('│  • Application tracking                        │');
