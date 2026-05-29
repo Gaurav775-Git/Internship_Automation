@@ -372,7 +372,7 @@ async function sendApplication(args) {
         <p>My skills and enthusiasm for learning align perfectly with what you're looking for in an intern. I'm confident I can contribute to your team from day one.</p>
         <p>My resume is attached for your review. I would welcome the opportunity to discuss how I can add value to your organization.</p>
         <p>Best regards,<br>
-        <strong>[Your Name]</strong><br>
+        <strong>Gaurav Goswami</strong><br>
         <a href="https://www.linkedin.com/in/gaurav775/">LinkedIn</a> | 
         <a href="https://github.com/gaurav775-git">GitHub</a> | 
         <a href="https://gaurav-rpm.vercel.app/">Portfolio</a></p>

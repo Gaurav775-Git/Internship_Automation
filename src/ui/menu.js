@@ -34,7 +34,6 @@ export async function showConfigMenu(currentConfig) {
         { name: `📧 Gmail User: ${currentConfig.gmailUser || 'NOT SET'}`, value: 'gmail' },
         { name: `📄 Resume Path: ${currentConfig.resumePath}`, value: 'resume' },
         { name: `📊 CSV Path: ${currentConfig.csvPath}`, value: 'csv' },
-        { name: `🎯 Min Match Score: ${currentConfig.minMatchScore}%`, value: 'minScore' },
         { name: `⏱️ Delay Between Emails: ${currentConfig.delaySeconds}s`, value: 'delay' },
         { name: `📨 Max Emails/Day: ${currentConfig.maxEmailsPerDay}`, value: 'maxEmails' },
         { name: '💾 Save and Return', value: 'save' },

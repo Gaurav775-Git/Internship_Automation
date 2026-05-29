@@ -102,11 +102,11 @@ export async function runBatchMode(client, config, resumeText, GMAIL_USER, GMAIL
       spinner.stop();
 
       const analysis = JSON.parse(analysisResult.content[0].text);
-      if (!analysis.success || !analysis.analysis.should_apply || analysis.analysis.match_score < config.minMatchScore) {
-        showWarning(`Skipping ${job.title} - low match or not recommended`);
-        skipped++;
-        progressBar.update(i + 1);
-        continue;
+      const matchScore = analysis.analysis?.match_score || 0;
+      if (!analysis.success) {
+        showWarning(`Analysis issue for ${job.title}, continuing to send email`);
+      } else if (!analysis.analysis.should_apply || matchScore < config.minMatchScore) {
+        showWarning(`Low match for ${job.title}, continuing to send email`);
       }
 
       const sendSpinner = await showSpinner(`Sending ${job.title}`);

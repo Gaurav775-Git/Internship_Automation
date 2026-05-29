@@ -73,17 +73,15 @@ export async function runManualMode(client, config, resumeText, GMAIL_USER, GMAI
 
     spinner.stop();
     const analysis = JSON.parse(analyzeResult.content[0].text);
+    const matchScore = analysis.analysis?.match_score || 0;
 
     if (!analysis.success) {
-      showError(`Analysis failed: ${analysis.error || 'Unknown error'}`);
-      return;
-    }
-
-    showInfo(`Match score: ${analysis.analysis.match_score} / 100`);
-
-    if (!analysis.analysis.should_apply || analysis.analysis.match_score < config.minMatchScore) {
-      showWarning('LLM suggests this job is not a strong fit. Use manual mode again for another job.');
-      return;
+      showWarning(`Analysis issue detected, continuing to send email`);
+    } else {
+      showInfo(`Match score: ${matchScore} / 100`);
+      if (!analysis.analysis.should_apply || matchScore < config.minMatchScore) {
+        showWarning('Low match detected, continuing to send email anyway.');
+      }
     }
 
     const sendSpinner = await showSpinner('Sending application');

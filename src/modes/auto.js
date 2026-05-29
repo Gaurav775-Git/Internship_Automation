@@ -2,7 +2,7 @@ import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createProgressBar, showSpinner, showSuccess, showError, showInfo } from '../ui/progress.js';
+import { createProgressBar, showSpinner, showSuccess, showError, showInfo, showWarning } from '../ui/progress.js';
 import { showSummaryTable } from '../ui/table.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -71,10 +71,11 @@ export async function runAutoMode(client, config, resumeText, GMAIL_USER, GMAIL_
     
     const analysis = JSON.parse(analyzeResult.content[0].text);
     
-    if (!analysis.success || !analysis.analysis.should_apply || analysis.analysis.match_score < config.minMatchScore) {
-      results.push({ ...job, score: analysis.analysis?.match_score || 0, status: 'Skipped - Low Match' });
-      progressBar.update(i + 1);
-      continue;
+    const matchScore = analysis.analysis?.match_score || 0;
+    if (!analysis.success) {
+      showWarning(`Analysis issue for ${job.title} at ${job.company}, continuing to send email`);
+    } else if (!analysis.analysis.should_apply || matchScore < config.minMatchScore) {
+      showWarning(`Low match for ${job.title} at ${job.company}, continuing to send email`);
     }
     
     // Send email
@@ -94,10 +95,10 @@ export async function runAutoMode(client, config, resumeText, GMAIL_USER, GMAIL_
     
     if (sendStatus.success) {
       showSuccess(`Sent to ${job.title} at ${job.company}`);
-      results.push({ ...job, score: analysis.analysis.match_score, status: 'Sent' });
+      results.push({ ...job, score: matchScore, status: 'Sent' });
     } else {
       showError(`Failed: ${job.title} at ${job.company} - ${sendStatus.error}`);
-      results.push({ ...job, score: analysis.analysis.match_score, status: 'Failed' });
+      results.push({ ...job, score: matchScore, status: 'Failed' });
     }
     
     progressBar.update(i + 1);

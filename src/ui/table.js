@@ -27,7 +27,7 @@ export function showSummaryTable(stats) {
   
   table.push(
     ['✅ Successfully Applied', stats.applied],
-    ['⏭️ Skipped (Low Match)', stats.skipped],
+    ['⏭️ Skipped (No Email)', stats.skipped],
     ['❌ Failed', stats.failed],
     ['📋 Total Processed', stats.total],
     ['⏱️ Time Taken', stats.timeTaken],

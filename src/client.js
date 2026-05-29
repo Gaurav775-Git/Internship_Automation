@@ -108,7 +108,7 @@ async function main() {
   
   // Load config
   const config = await loadConfig();
-  showInfo(`Config loaded: Min Score ${config.minMatchScore}%, Delay ${config.delaySeconds}s\n`);
+  showInfo(`Config loaded: Delay ${config.delaySeconds}s, Max Emails ${config.maxEmailsPerDay}/day\n`);
   
   // Connect to MCP server
   const transport = new StdioClientTransport({
@@ -186,17 +186,6 @@ async function main() {
             }]);
             await updateConfig({ csvPath });
             showSuccess(`CSV path updated to ${csvPath}`);
-          }
-          else if (configAction === 'minScore') {
-            const { score } = await inquirer.prompt([{ 
-              type: 'number',
-              name: 'score',
-              message: 'Minimum match score (0-100):',
-              default: config.minMatchScore,
-              validate: (input) => input >= 0 && input <= 100
-            }]);
-            await updateConfig({ minMatchScore: score });
-            showSuccess(`Min score updated to ${score}%`);
           }
           else if (configAction === 'delay') {
             const { delay } = await inquirer.prompt([{ 
