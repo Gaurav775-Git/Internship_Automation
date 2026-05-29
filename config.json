@@ -1,0 +1,9 @@
+{
+  "gmailUser": "",
+  "resumePath": "data/resume.txt",
+  "csvPath": "data/internships.csv",
+  "minMatchScore": 50,
+  "delaySeconds": 45,
+  "maxEmailsPerDay": 100,
+  "theme": "default"
+}
