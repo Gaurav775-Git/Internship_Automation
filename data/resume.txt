@@ -1,4 +1,19 @@
-Skills: Python, JavaScript, React, Node.js, SQL, Git, AWS
-Experience: Built 3 web apps, 2 internships
-Education: Computer Science, 3rd year
-Projects: E-commerce site, Weather dashboard, Chat app
+Skills: Python, JavaScript, React, Node.js, Java, SQL, AWS, Docker, Kubernetes, Machine Learning, PyTorch, Data Structures, Algorithms, System Design, Git, Linux
+
+Experience:
+- Software Engineering Intern (Summer 2023): Built RESTful APIs, implemented CI/CD pipeline
+- Research Assistant (2022-2023): Developed ML models using PyTorch, published paper
+- Full-stack Developer (Freelance): Built e-commerce platform, real-time chat app
+
+Projects:
+- Distributed Task Scheduler (Go, Docker, Kubernetes)
+- Real-time Stock Predictor (Python, LSTM)
+- Mobile Expense Tracker (Swift, Firebase)
+
+Education:
+- Computer Science, 3rd Year, GPA: 3.8/4.0
+- Courses: Data Structures, Algorithms, ML, Distributed Systems
+
+Certifications:
+- AWS Solutions Architect
+- Meta Backend Developer Certificate
