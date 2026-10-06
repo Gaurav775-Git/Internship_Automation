@@ -7,14 +7,10 @@ export async function showMainMenu() {
       name: 'choice',
       message: '🎯 What would you like to do?',
       choices: [
-        { name: '🚀 AUTO MODE - Complete automation (CSV → Send)', value: 'auto' },
-        { name: '🔧 MANUAL MODE - Step-by-step guided process', value: 'manual' },
-        { name: '📦 BATCH MODE - Process specific jobs from CSV', value: 'batch' },
-        { name: '🧹 FILTER DATA - AI clean and fix CSV data', value: 'filterData' },
+        { name: '📧 SEND BULK EMAILS - CSV/Excel → Send', value: 'bulk' },
         { name: '📊 VIEW LOGS - See application history', value: 'logs' },
         { name: '⚙️ CONFIGURATION - Update settings', value: 'config' },
         { name: '🧪 TEST EMAIL - Send test to yourself', value: 'test' },
-        { name: 'ℹ️ ABOUT - System information', value: 'about' },
         { name: '🚪 EXIT', value: 'exit' }
       ],
       pageSize: 10,
@@ -33,7 +29,9 @@ export async function showConfigMenu(currentConfig) {
       choices: [
         { name: `📧 Gmail User: ${currentConfig.gmailUser || 'NOT SET'}`, value: 'gmail' },
         { name: `📄 Resume Path: ${currentConfig.resumePath}`, value: 'resume' },
-        { name: `📊 CSV Path: ${currentConfig.csvPath}`, value: 'csv' },
+        { name: `📊 Recipient File: ${currentConfig.recipientsPath}`, value: 'recipients' },
+        { name: `✉️ Subject: ${currentConfig.emailSubject}`, value: 'subject' },
+        { name: '📝 Email Body', value: 'body' },
         { name: `⏱️ Delay Between Emails: ${currentConfig.delaySeconds}s`, value: 'delay' },
         { name: `📨 Max Emails/Day: ${currentConfig.maxEmailsPerDay}`, value: 'maxEmails' },
         { name: '💾 Save and Return', value: 'save' },

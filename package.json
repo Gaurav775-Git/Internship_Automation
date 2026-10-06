@@ -22,7 +22,8 @@
     "figlet": "^1.5.2",
     "gradient-string": "^2.0.1",
     "inquirer": "^9.2.7",
+    "nodemailer": "^8.0.9",
     "ora": "^6.1.2",
-    "nodemailer": "^8.0.9"
+    "xlsx": "^0.18.5"
   }
 }

@@ -2,15 +2,12 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { readFile } from 'fs/promises';
 import dotenv from 'dotenv';
 import { showBanner } from './ui/banner.js';
 import { showMainMenu, showConfigMenu } from './ui/menu.js';
 import { showSpinner, showSuccess, showError, showInfo, showWarning } from './ui/progress.js';
 import { loadConfig, updateConfig } from './config/manager.js';
-import { runAutoMode } from './modes/auto.js';
-import { runManualMode } from './modes/manual.js';
-import { runBatchMode } from './modes/batch.js';
+import { runBulkMode } from './modes/bulk.js';
 import { showLogs } from './ui/logs.js';
 import inquirer from 'inquirer';
 
@@ -32,64 +29,6 @@ async function waitForContinue() {
       default: ''
     }
   ]);
-}
-
-async function runFilterDataTool(client, config) {
-  console.log('\n🧹 FILTER DATA MODE\n');
-
-  const { overwrite } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'overwrite',
-      message: 'How should the cleaned CSV be saved?',
-      choices: [
-        { name: 'Create a cleaned copy (recommended)', value: false },
-        { name: 'Overwrite the current CSV', value: true }
-      ],
-      default: false
-    }
-  ]);
-
-  let outputPath = '';
-  if (!overwrite) {
-    const response = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'outputPath',
-        message: 'Output path for cleaned CSV:',
-        default: 'data/internships.cleaned.csv'
-      }
-    ]);
-    outputPath = response.outputPath;
-  }
-
-  const spinner = await showSpinner('AI is cleaning and normalizing the CSV...');
-  try {
-    const result = await client.callTool({
-      name: 'filter_data',
-      arguments: {
-        csvPath: config.csvPath,
-        outputPath: overwrite ? undefined : outputPath,
-        overwrite
-      }
-    });
-
-    const data = JSON.parse(result.content[0].text);
-    spinner.stop();
-
-    if (data.success) {
-      showSuccess(`CSV cleaned successfully: ${data.outputPath}`);
-      showInfo(`Rows read: ${data.rowsRead}, rows written: ${data.rowsWritten}, rows needing review: ${data.rowsNeedingReview}`);
-      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
-        showWarning(`Some rows needed fallback cleanup (${data.warnings.length} warning(s))`);
-      }
-    } else {
-      showError(`Failed to clean CSV: ${data.error}`);
-    }
-  } catch (err) {
-    spinner.stop();
-    showError(err.message);
-  }
 }
 
 async function main() {
@@ -124,31 +63,14 @@ async function main() {
   await client.connect(transport);
   showSuccess('Connected to AutoIntern server\n');
   
-  // Load resume
-  let resumeText = '';
-  try {
-    resumeText = await readFile(path.join(ROOT_DIR, config.resumePath), 'utf-8');
-    showSuccess('Resume loaded\n');
-  } catch {
-    showWarning('Resume not found. Create data/resume.txt\n');
-  }
-  
   // Main menu loop
   let running = true;
   while (running) {
     const choice = await showMainMenu();
     
     switch (choice) {
-      case 'auto':
-        if (!GMAIL_USER || !GMAIL_PASSWORD) {
-          showError('Gmail credentials required. Configure .env first');
-          break;
-        }
-        if (!resumeText) {
-          showError('Resume required. Create data/resume.txt first');
-          break;
-        }
-        await runAutoMode(client, config, resumeText, GMAIL_USER, GMAIL_PASSWORD);
+      case 'bulk':
+        await runBulkMode(client, config, GMAIL_USER, GMAIL_PASSWORD);
         await waitForContinue();
         break;
         
@@ -177,15 +99,35 @@ async function main() {
             await updateConfig({ resumePath });
             showSuccess(`Resume path updated to ${resumePath}`);
           }
-          else if (configAction === 'csv') {
-            const { csvPath } = await inquirer.prompt([{ 
+          else if (configAction === 'recipients') {
+            const { recipientsPath } = await inquirer.prompt([{ 
               type: 'input',
-              name: 'csvPath',
-              message: 'Enter CSV path:',
-              default: config.csvPath
+              name: 'recipientsPath',
+              message: 'Enter CSV or Excel path:',
+              default: config.recipientsPath
             }]);
-            await updateConfig({ csvPath });
-            showSuccess(`CSV path updated to ${csvPath}`);
+            await updateConfig({ recipientsPath });
+            showSuccess(`Recipient file updated to ${recipientsPath}`);
+          }
+          else if (configAction === 'subject') {
+            const { emailSubject } = await inquirer.prompt([{
+              type: 'input',
+              name: 'emailSubject',
+              message: 'Enter email subject:',
+              default: config.emailSubject
+            }]);
+            await updateConfig({ emailSubject });
+            showSuccess('Email subject updated');
+          }
+          else if (configAction === 'body') {
+            const { emailBody } = await inquirer.prompt([{
+              type: 'editor',
+              name: 'emailBody',
+              message: 'Edit email body:',
+              default: config.emailBody
+            }]);
+            await updateConfig({ emailBody });
+            showSuccess('Email body updated');
           }
           else if (configAction === 'delay') {
             const { delay } = await inquirer.prompt([{ 
@@ -213,27 +155,10 @@ async function main() {
           
           const newConfig = await loadConfig();
           Object.assign(config, newConfig);
-          try {
-            resumeText = await readFile(path.join(ROOT_DIR, config.resumePath), 'utf-8');
-          } catch {
-            resumeText = '';
-          }
         }
         await waitForContinue();
         break;
         
-      case 'manual':
-        await runManualMode(client, config, resumeText, GMAIL_USER, GMAIL_PASSWORD);
-        await waitForContinue();
-        break;
-      case 'batch':
-        await runBatchMode(client, config, resumeText, GMAIL_USER, GMAIL_PASSWORD);
-        await waitForContinue();
-        break;
-      case 'filterData':
-        await runFilterDataTool(client, config);
-        await waitForContinue();
-        break;
       case 'logs':
         await showLogs(ROOT_DIR);
         await waitForContinue();
@@ -246,11 +171,11 @@ async function main() {
         const spinner = await showSpinner('Sending test email...');
         try {
           const result = await client.callTool({
-            name: 'send_application',
+            name: 'send_email',
             arguments: {
               to: GMAIL_USER,
-              jobTitle: 'Test Email',
-              company: 'AutoIntern System',
+              subject: config.emailSubject,
+              body: config.emailBody,
               resumePath: path.join(ROOT_DIR, config.resumePath),
               gmailUser: GMAIL_USER,
               gmailPassword: GMAIL_PASSWORD

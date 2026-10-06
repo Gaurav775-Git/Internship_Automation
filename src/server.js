@@ -426,6 +426,57 @@ async function sendApplication(args) {
   }
 }
 
+async function sendEmail(args) {
+  const {
+    to,
+    subject,
+    body,
+    resumePath: resumePathArg,
+    gmailUser: gmailUserArg,
+    gmailPassword: gmailPasswordArg
+  } = args;
+  const gmailUser = gmailUserArg || DEFAULT_GMAIL_USER;
+  const gmailPassword = gmailPasswordArg || DEFAULT_GMAIL_PASSWORD;
+  const resumePath = resumePathArg || DEFAULT_RESUME_PATH;
+
+  try {
+    if (!to || !subject || !body) throw new Error("Recipient, subject, and body are required");
+    if (!gmailUser || !gmailPassword) throw new Error("Gmail credentials are required");
+    if (!existsSync(resumePath)) throw new Error(`Resume not found at ${resumePath}`);
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: gmailUser, pass: gmailPassword }
+    });
+    const info = await transporter.sendMail({
+      from: gmailUser,
+      to,
+      subject,
+      text: body,
+      attachments: [{ filename: path.basename(resumePath), path: resumePath }]
+    });
+
+    const logDir = path.join(ROOT_DIR, "logs");
+    if (!existsSync(logDir)) await mkdir(logDir, { recursive: true });
+    const logPath = path.join(logDir, "sent-emails.json");
+    let logs = [];
+    if (existsSync(logPath)) logs = JSON.parse(await readFile(logPath, "utf-8"));
+    logs.push({ timestamp: new Date().toISOString(), to, subject, messageId: info.messageId });
+    await writeFile(logPath, JSON.stringify(logs, null, 2));
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ success: true, messageId: info.messageId, to, subject })
+      }]
+    };
+  } catch (error) {
+    return {
+      content: [{ type: "text", text: JSON.stringify({ success: false, error: error.message }) }]
+    };
+  }
+}
+
 // Tool 4: Save to CSV
 async function logApplication(args) {
   const { jobTitle, company, matchScore, status = "Applied" } = args;
@@ -771,6 +822,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         }
       },
       {
+        name: "send_email",
+        description: "Send the same fixed email body and resume attachment to one recipient",
+        inputSchema: {
+          type: "object",
+          properties: {
+            to: { type: "string", description: "Recipient email address" },
+            subject: { type: "string", description: "Fixed email subject" },
+            body: { type: "string", description: "Fixed plain-text email body" },
+            resumePath: { type: "string", description: "Path to the resume attachment" },
+            gmailUser: { type: "string" },
+            gmailPassword: { type: "string" }
+          },
+          required: ["to", "subject", "body"]
+        }
+      },
+      {
         name: "log_application",
         description: "Log application to CSV file",
         inputSchema: {
@@ -837,6 +904,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return await filterJobs(args);
     case "send_application":
       return await sendApplication(args);
+    case "send_email":
+      return await sendEmail(args);
     case "log_application":
       return await logApplication(args);
     case "mistral_analyze_job":
@@ -855,7 +924,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("✅ Internship Automation MCP Server running");
-  console.error("📧 Tools: search_linkedin, filter_jobs, send_application, log_application, mistral_analyze_job, llm_chat, filter_data");
+  console.error("📧 Tools: send_email, send_application, search_linkedin, filter_jobs, log_application");
 }
 
 main().catch(console.error);

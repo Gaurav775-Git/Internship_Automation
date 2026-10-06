@@ -8,8 +8,9 @@ const CONFIG_PATH = path.join(__dirname, '..', '..', 'config.json');
 const DEFAULT_CONFIG = {
   gmailUser: '',
   resumePath: 'data/resume.txt',
-  csvPath: 'data/internships.csv',
-  minMatchScore: 50,
+  recipientsPath: 'data/internships.csv',
+  emailSubject: 'Internship Application',
+  emailBody: 'Dear Hiring Team,\n\nPlease find my resume attached for your consideration. I would appreciate the opportunity to discuss how I can contribute to your team.\n\nBest regards,\nGaurav Goswami',
   delaySeconds: 45,
   maxEmailsPerDay: 100,
   theme: 'default'
