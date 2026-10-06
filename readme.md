@@ -6,7 +6,7 @@
 <img src="https://img.shields.io/badge/node-%3E%3D18-68B587?style=for-the-badge&logo=nodedotjs" alt="Node.js">
 <img src="https://img.shields.io/badge/mcp--sdk-v1.0.0-FF6B35?style=for-the-badge" alt="MCP SDK">
 
-### 🤖 Automated internship matching powered by LLMs
+### 📧 Send one application email to many recipients
 
 </div>
 
@@ -14,15 +14,15 @@
 
 ## 🎯 What It Does
 
-Internship Automation automates your job hunt by:
+Internship Automation sends one fixed subject, body, and resume attachment to multiple recipients by:
 
 | Step | Action |
 |------|--------|
-| 🔍 **Search** | Parse LinkedIn exports & CSV job listings |
-| 🎯 **Match** | Score positions against your resume skills |
-| 🤖 **Analyze** | LLM-powered fit analysis with email drafts |
-| 📧 **Apply** | Auto-send applications with resume attached |
-| 📊 **Track** | Log everything to CSV + JSON snapshots |
+| 📄 **Read** | Extract email addresses from CSV or Excel files |
+| 🧹 **Clean** | Remove duplicates and ignore invalid rows |
+| 📧 **Send** | Send the same email separately to every recipient |
+| 📎 **Attach** | Add the same resume to every email |
+| 📊 **Track** | Log each delivery to JSON |
 
 ---
 
@@ -45,12 +45,7 @@ node src/client.js
 
 ```
 🤖 INTERNSHIP AUTOMATION CLIENT
-Commands:
-  /search <keyword>     - Find internship listings
-  /filter               - Score against your resume
-  /analyze <job #>      - LLM fit analysis
-  /send <job #> <email> - Send custom application
-  /auto                 - FULL AUTOMATION MODE 🚀
+Choose `SEND BULK EMAILS` from the interactive menu, then provide a `.csv`, `.xlsx`, or `.xls` file.
 ```
 
 ---
@@ -60,8 +55,7 @@ Commands:
 ```
 internship-automation/
 ├── data/
-│   ├── internships.csv      # Your target positions
-│   ├── linkedin_jobs.csv    # LinkedIn export
+│   ├── recipients.csv       # Recipient list (CSV or Excel)
 │   └── resume.pdf           # Your resume
 ├── src/
 │   ├── server.js            # MCP server with 6 tools
@@ -80,12 +74,7 @@ internship-automation/
 
 | Tool | Parameter | Description |
 |------|-----------|-------------|
-| `search_linkedin` | `keyword`, `location?` | Search jobs from CSV |
-| `filter_jobs` | `jobs`, `resumeText` | Skill-based scoring |
-| `send_application` | `to`, `jobTitle`, `company` | Send email via Gmail |
-| `log_application` | `jobTitle`, `company`, `matchScore` | Track to CSV |
-| `mistral_analyze_job` | `jobTitle`, `company`, `jobDescription`, `yourResume` | LLM analysis |
-| `llm_chat` | `message` | Direct LLM chat |
+| `send_email` | `to`, `subject`, `body` | Send fixed email with resume via Gmail |
 
 ---
 
@@ -95,7 +84,6 @@ internship-automation/
 # .env file
 GMAIL_USER=your.email@gmail.com
 GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
-OPENROUTER_API_KEY=sk-or-...
 RESUME_PATH=data/resume.pdf
 ```
 
@@ -103,31 +91,22 @@ See [SETUP.md](./SETUP.md) for detailed setup.
 
 ---
 
-## 📊 Data Distribution
+## 📊 Sending Flow
 
 The automation processes data through a clean pipeline:
 
 ```mermaid
 flowchart TB
     subgraph Input
-        A[internships.csv] --> B[Job Parser]
-        C[resume.pdf/text] --> D[Skill Extractor]
+        A[CSV or Excel] --> B[Email extractor]
+        C[resume.pdf/text] --> D[Attachment]
     end
     
     subgraph Processing
-        B --> E[Match Engine]
-        D --> E
-        E --> F{Score ≥ 3?}
-        F -->|Yes| G[LLM Analyzer]
-        F -->|No| H[Skipped]
-    end
-    
-    subgraph Output
-        G --> I[Email Draft]
-        I --> J[Send Email]
-        J --> K[logs/applications.csv]
-        J --> L[logs/sent-emails.json]
-        G --> M[matches/*.json]
+        B --> E[Preview and confirmation]
+        D --> F[Send individually]
+        E --> F
+        F --> G[logs/sent-emails.json]
     end
     
     style E fill:#FF6B35,color:#fff

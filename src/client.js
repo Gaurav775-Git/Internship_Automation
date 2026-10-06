@@ -197,18 +197,17 @@ async function main() {
         
       case 'about':
         console.log('\n┌─────────────────────────────────────────────────┐');
-        console.log('│              🤖 AutoIntern v2.0                 │');
+        console.log('│              📧 AutoIntern v2.0                 │');
         console.log('├─────────────────────────────────────────────────┤');
-        console.log('│  AI-powered internship automation system       │');
+        console.log('│  Simple bulk email automation system           │');
         console.log('│                                                │');
         console.log('│  Features:                                     │');
-        console.log('│  • Auto-apply from CSV                         │');
-        console.log('│  • AI CSV cleaning and repair                  │');
-        console.log('│  • LLM job matching                            │');
-        console.log('│  • Personalized emails                         │');
-        console.log('│  • Application tracking                        │');
+        console.log('│  • Read recipients from CSV or Excel           │');
+        console.log('│  • Send the same email to each recipient       │');
+        console.log('│  • Attach one resume to every email            │');
+        console.log('│  • Delivery logging                             │');
         console.log('│                                                │');
-        console.log('│  Built with: MCP + Node.js + OpenRouter        │');
+        console.log('│  Built with: MCP + Node.js + Gmail             │');
         console.log('│                                                │');
         console.log('│  License: MIT                                  │');
         console.log('└─────────────────────────────────────────────────┘\n');

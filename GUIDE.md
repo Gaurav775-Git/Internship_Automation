@@ -1,76 +1,36 @@
-# Data Distribution Guide
+# Bulk Email Guide
 
-*Import • Process • Automate*
+*Find recipients • Preview • Send*
 
 ## Data Flow Architecture
 
 ```mermaid
 flowchart LR
-    A[CSV Sources] --> B[Processing Engine]
-    B --> C[Match Scores]
-    C --> D{Score ≥ 3?}
-    D -->|Yes| E[LLM Analysis]
-    E --> F[Email Generation]
-    F --> G[Send Application]
-    D -->|No| H[Skip]
-    G --> I[Log CSV]
-    I --> J[Sent Emails JSON]
+    A[CSV or Excel file] --> B[Find email addresses]
+    B --> C[Remove duplicates]
+    C --> D[Preview and confirm]
+    D --> E[Send same email individually]
+    E --> F[Attach resume]
+    E --> G[Log delivery]
 ```
 
 ## Supported Data Formats
 
-### Internships CSV (`data/internships.csv`)
+### Recipient file (`data/recipients.csv`, `.xlsx`, or `.xls`)
 
 | Column | Required | Description |
 |--------|----------|-------------|
-| `Title` | ✅ | Job title (e.g., "Software Intern") |
-| `Company` | ✅ | Company name |
-| `Description` | ✅ | Brief job description |
-| `Requirements` | ✅ | Skills/requirements list |
-| `Email` | ✅ | Contact email for applications |
-
-### LinkedIn Jobs CSV (`data/linkedin_jobs.csv`)
-
-```csv
-title,company,location,url,postedDate,description
-"Software Engineer Intern","Google","Mountain View, CA","https://...","2024-01-15","Build scalable systems..."
-```
+| `Email` | Recommended | Email address column; other columns are allowed |
 
 ### Resume (`data/resume.txt` or `data/resume.pdf`)
 
-Plain text or PDF format. The system extracts skills automatically.
+The same resume is attached to every email.
 
 ## Automation Commands
 
-### `/auto` - Full Pipeline
+### Send bulk emails
 
-The one-command automation:
-
-```
-1. Reads data/internships.csv
-2. Analyzes each job with LLM
-3. Filters by match score
-4. Sends applications (45s delay between emails)
-5. Logs to logs/applications.csv
-```
-
-### `/search <keyword>` - Find Jobs
-
-Searches `linkedin_jobs.csv` for matching positions:
-
-```bash
-/search software     # Software internships
-/search frontend     # Frontend roles
-/search remote       # Remote positions
-```
-
-### `/filter` - Score Matching
-
-Filters loaded jobs against your resume. Uses skill matching + title weighting.
-
-### `/analyze <job#>` - Deep Analysis
-
-Provides match score, reasons to apply, and generated email.
+Choose **Send Bulk Emails** from the menu. Enter the recipient file, review the number of addresses found, and confirm. Each recipient receives a separate email with the same subject, body, and resume attachment.
 
 ## Output Files
 

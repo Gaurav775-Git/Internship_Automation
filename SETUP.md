@@ -30,9 +30,6 @@ GMAIL_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
 # Optional: Resume file path
 RESUME_PATH=data/resume.pdf
 
-# Optional: OpenRouter API (for LLM analysis)
-OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
 ```
 
 ### Gmail App Password Setup
@@ -44,11 +41,12 @@ OPENROUTER_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
 
 ## Data Preparation
 
-Place your internship data in `data/internships.csv`:
+Place a recipient file in `data/recipients.csv`, `.xlsx`, or `.xls`. The program automatically finds email addresses in a column named `Email` or by scanning the file:
 
 ```csv
-Title,Company,Description,Requirements,Email
-"Software Engineering Intern","TechCorp","Backend Python role","Python, SQL","hr@techcorp.com"
+Name,Email
+Recruiter One,hr@example.com
+Recruiter Two,careers@example.com
 ```
 
 Place your resume at `data/resume.pdf` (or specify custom path in `.env`).
@@ -62,6 +60,5 @@ node src/client.js
 ## Verify Setup
 
 ```
-/testemail    # Should send a test email
-/search intern # Should find jobs from linkedin_jobs.csv
+/testemail    # Should send a test email to yourself
 ```

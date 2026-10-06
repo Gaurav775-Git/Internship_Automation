@@ -109,10 +109,20 @@ export async function runBulkMode(client, config, gmailUser, gmailPassword) {
     }
   ]);
 
+  if (!content.subject.trim() || !content.body.trim()) {
+    showError('Email subject and body cannot be empty');
+    return;
+  }
+
   const resumePath = resolvePath(config.resumePath);
   if (!existsSync(resumePath)) {
     showError(`Resume not found: ${resumePath}`);
     return;
+  }
+
+  if (emails.length > config.maxEmailsPerDay) {
+    showWarning(`Found ${emails.length} recipients; only the first ${config.maxEmailsPerDay} will be sent today`);
+    emails = emails.slice(0, config.maxEmailsPerDay);
   }
 
   showInfo(`Found ${emails.length} unique email address(es)`);
